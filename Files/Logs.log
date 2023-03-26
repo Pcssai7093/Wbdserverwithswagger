@@ -3,3 +3,12 @@ OPTIONS /resetpassword/6417f36387f7cbc07db0dfde 204 0 - 6.505 ms
 OPTIONS /resetpassword/6417f36387f7cbc07db0dfde 204 0 - 0.530 ms
 OPTIONS /resetpassword/6417f36387f7cbc07db0dfde 204 0 - 7.675 ms
 POST /resetpassword/6417f36387f7cbc07db0dfde 200 515 - 260.953 ms
+GET / 304 - - 11.687 ms
+GET /favicon.ico 404 150 - 7.726 ms
+GET /api-docs/ 304 - - 4.613 ms
+GET /api-docs/swagger-ui-init.js 304 - - 0.830 ms
+GET /api-docs/swagger-ui.css 200 145206 - 12.814 ms
+GET /api-docs/swagger-ui-standalone-preset.js 200 322863 - 9.891 ms
+GET /api-docs/swagger-ui-bundle.js 200 1046583 - 10.258 ms
+GET /api-docs/favicon-32x32.png 200 628 - 2.030 ms
+GET /api-docs/favicon-32x32.png 304 - - 2.442 ms
