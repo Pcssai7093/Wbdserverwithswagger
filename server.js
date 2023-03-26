@@ -9,6 +9,7 @@ const adminConstructor = module.require("./Schemas/admins");
 const userConstructor = module.require("./Schemas/users");
 const serviceConstructor = module.require("./Schemas/services");
 const messageConstructor=module.require("./Schemas/message");
+const Contact = module.require("./Schemas/query");
 const bcrypt = require("bcrypt");
 const app = express();
 const cors = require("cors");
@@ -18,16 +19,25 @@ const morgan = require("morgan");
 const multer = require("multer");
 const DatauriParser = require("datauri/parser");
 const parser = new DatauriParser();
+const fs = require("fs");
 const path = require("path");
-const { bufferParser, cloudinary } = require("./cloudinary");
+const { bufferParser, cloudinary,multerUploads } = require("./cloudinary");
+
+const swaggerUi = require('swagger-ui-express')
+const swaggerJSDoc = require('swagger-jsdoc')
 
 const userRoutes = require("./Routes/user");
 const serviceRoutes = require("./Routes/service");
 const wishlistRoutes = require("./Routes/wishlist");
 const chatRoutes = require("./Routes/chat");
 
-// app.use(morgan("tiny"));
+let logStream = fs.createWriteStream("./Files/Logs.log", {
+  flags: "a",
+});
 
+app.use(morgan("tiny",{
+  stream: logStream,
+}));
 app.use(cookieParser());
 app.use(cors({ origin: true }));
 
@@ -98,22 +108,252 @@ io.on("connection", (clientSocket) => {
   });
 });
 
+const options = {
+    definition: {
+        openapi: '3.0.0',
+        info : {
+            title: "Lancer FreeLancing Project",
+            version: '1.0.0'
+        },
+        servers: [
+          {
+              url : 'http://localhost:5000/'
+          }
+        ]
+    },
+    apis : ['./server.js', './Routes/user.js', './Routes/service.js', './Routes/chat.js', './Routes/wishlist.js']
+}
+
+const swaggerSpec = swaggerJSDoc(options)
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
+
+/**
+ * @swagger
+ * /:
+ *  get:
+ *    summary: This api is used to check if the server is connected to the database or not
+ *    description: This api is used to check if the server is connected to the database or not
+ *    responses:
+ *        200: 
+ *              description: To test get method
+ */
 app.get("/", (req, res) => {
   res.send(`server running at port ${port}`);
 });
 
-app.post("/forgotpass", (req,res) => {
-  
+app.post("/resetpassword/:id", (req,res) => {
+  const id = req.params.id;
+  console.log("hello")
   userConstructor
-  .find({email: req.body.email})
+  .findByIdAndUpdate({_id:id},
+  {
+      password: req.body.password
+  })
   .then((result) => {
-    res.send(result);
+    console.log(result)
+    res.send(result)
   })
   .catch((err) => {
-    res.send(err);
-  }) 
-  
+    res.send(err)
+    console.log(err);
+  })
 })
+
+
+
+app.post('/insert', async(req, res) => {
+
+  // const FirstName = req.body.firstName
+  // const CompanyRole = req.body.companyRole
+  // console.log(FirstName, CompanyRole)\
+  console.log(req.body)
+  const formData  =  new Contact(
+      {
+          name: req.body.name,
+           email: req.body.email,
+          message: req.body.message
+      }
+  )
+  try{
+   
+      await formData.save();
+      res.send("inserted data..")
+
+  } catch(err){
+      console.log(err)
+  }
+});
+
+/**
+ * @swagger
+ *  components:
+ *      schema:
+ *          User:
+ *            type: object
+ *            properties:
+ *                fullname:
+ *                    type: string
+ *                username:
+ *                    type: string
+ *                email:
+ *                    type: string
+ *                password:
+ *                    type: string
+ *                isSeller:
+ *                    type: boolean
+ *                isBlock:
+ *                    type: boolean
+ *                skills:
+ *                    type: array
+ *                services:
+ *                    type: array
+ *                wishlist:
+ *                    type: array
+ *                conversations:
+ *                    type: array
+ *                about:
+ *                    type: string
+ * 
+ */
+
+/**
+ * @swagger
+ *  components:
+ *      schema:
+ *          Service:
+ *            type: object
+ *            properties:
+ *                title: 
+ *                    type: string
+ *                description:
+ *                    type: string
+ *                price:
+ *                    type: number
+ *                category:
+ *                    type: string
+ *                seller:
+ *                    type: array
+ *                isBlock:
+ *                    type: boolean
+ *                    
+ */
+
+/**
+ * @swagger
+ * /admin/users:
+ *  get:
+ *      summary: To get all the users present in the database
+ *      description: This api is used fetch all the users from mongodb
+ *      responses:
+ *          200:
+ *              description: This api is used fetch all the users from mongodb
+ *              content:
+ *                  application/json:
+ *                      schema:
+ *                          type: array
+ *                          items:
+ *                            $ref: '#components/schema/User'
+ */
+
+app.get("/admin/users", (req, res) => {
+  userConstructor
+    .find()
+    .then((result) => {
+      res.send(result);
+    })
+    .catch((err) => {
+      res.send(err);
+    });
+});
+
+/**
+ * @swagger
+ * /admin/services:
+ *  get:
+ *      summary: To get all the services present in the database
+ *      description: This api is used fetch all the services from mongodb
+ *      responses:
+ *          200:
+ *              description: This api is used fetch all the services from mongodb
+ *              content:
+ *                  application/json:
+ *                      schema:
+ *                          type: array
+ *                          items:
+ *                              $ref: '#components/schema/Service'
+ */
+
+app.get("/admin/services", (req, res) => {
+  serviceConstructor
+    .find()
+    .populate("seller")
+    .then((result) => {
+      res.send(result);
+    })
+    .catch((err) => {
+      res.send(err);
+    });
+});
+
+/**
+ *  @swagger
+ *  /profile/{uid}:
+ *   get: 
+ *        summary: To get the details of a user
+ *        description: This API gets the details of a user
+ *        parameters:
+ *            - in: path
+ *              name: uid
+ *              required: true
+ *              description: string id required
+ *              schema:
+ *                type: string
+ *        responses:
+ *          200:
+ *              description: This api is used fetch the details of a user from mongodb
+ *              content:
+ *                  application/json:
+ *                      schema:
+ *                          type: array
+ *                          items:
+ *                              $ref: '#components/schema/User'
+ */
+
+app.get("/profile/:uid", (req, res) => {
+  const id = req.params.uid;
+  userConstructor
+    .find({ _id: id })
+    .then((result) => {
+      res.send(result);
+    })
+    .catch((err) => {
+      res.send(err);
+    });
+});
+
+/**
+ *  @swagger
+ *  /profilee/{pid}:
+ *   get: 
+ *        summary: To get the details of a service
+ *        description: This API gets the details of a service
+ *        parameters:
+ *            - in: path
+ *              name: pid
+ *              required: true
+ *              description: string id required
+ *              schema:
+ *                type: string
+ *        responses:
+ *          200:
+ *              description: This api is used fetch the details of a service from mongodb
+ *              content:
+ *                  application/json:
+ *                      schema:
+ *                          type: array
+ *                          items:
+ *                              $ref: '#components/schema/User'
+ */
 
 app.get("/profilee/:pid", (req,res) => {
   const id = req.params.pid;
@@ -128,17 +368,44 @@ app.get("/profilee/:pid", (req,res) => {
   })
 })
 
-app.get("/profile/:uid", (req, res) => {
-  const id = req.params.uid;
-  userConstructor
-    .find({ _id: id })
-    .then((result) => {
-      res.send(result);
-    })
-    .catch((err) => {
-      res.send(err);
-    });
-});
+/**
+ *  @swagger
+ *  /profile/{uid}:
+ *   post: 
+ *        summary: To update the details of a user
+ *        description: This API updates the details of a user
+ *        parameters:
+ *            - in: path
+ *              name: uid
+ *              required: true
+ *              description: string id required
+ *              schema:
+ *                type: string
+ *        requestBody:
+ *          required: true
+ *          content:
+ *              application/json:
+ *                  schema:
+ *                      type: object
+ *                      properties:
+ *                          fullname: 
+ *                              type: string
+ *                          skills:
+ *                              type: string
+ *                          about:
+ *                              type: string
+ *                          password:
+ *                              type: string
+ *        responses:
+ *          200:
+ *              description: This api is used to update the details of a user from mongodb
+ *              content:
+ *                  application/json:
+ *                      schema:
+ *                          type: array
+ *                          items:
+ *                              $ref: '#components/schema/User'
+ */
 
 app.post("/profile/:uid", (req, res) => {
   const id = req.params.uid;
@@ -159,28 +426,66 @@ app.post("/profile/:uid", (req, res) => {
     });
 });
 
-app.get("/admin/users", (req, res) => {
-  userConstructor
-    .find()
-    .then((result) => {
-      res.send(result);
-    })
-    .catch((err) => {
-      res.send(err);
-    });
-});
+/**
+ * @swagger
+ * /forgotpass:
+ *  post:
+ *      summary: To return a particular user based on his email
+ *      description: To return a particular user based on his email
+ *      requestBody:
+ *          required: true
+ *          content:
+ *              application/json:
+ *                  schema:
+ *                      type: object
+ *                      properties:
+ *                          email: 
+ *                              type: string
+ *      responses:
+ *          200:
+ *              description: To return a particular user based on his email
+ *              content:
+ *                  application/json:
+ *                      schema:
+ *                          type: array
+ *                          items:
+ *                              $ref: '#components/schema/User'
+ */
 
-app.get("/admin/services", (req, res) => {
-  serviceConstructor
-    .find()
-    .populate("seller")
-    .then((result) => {
-      res.send(result);
-    })
-    .catch((err) => {
-      res.send(err);
-    });
-});
+app.post("/forgotpass", (req,res) => {
+  
+  userConstructor
+  .find({email: req.body.email})
+  .then((result) => {
+    res.send(result);
+  })
+  .catch((err) => {
+    res.send(err);
+  }) 
+  
+})
+
+/**
+ * @swagger
+ * /admin/signin:
+ *  post:
+ *      summary: To return a particular user based on his email
+ *      description: To return a particular user based on his email
+ *      requestBody:
+ *          required: true
+ *          content:
+ *              application/json:
+ *                  schema:
+ *                      type: object
+ *                      properties:
+ *                          usnam: 
+ *                              type: string
+ *                          eml:
+ *                              type: string
+ *      responses:
+ *          200:
+ *              description: hello
+ */
 
 app.post("/admin/signin", (req, res) => {
   //   let data = req.body;
@@ -289,13 +594,30 @@ app.post("/admin/service/filter", (req, res) => {
     });
 });
 
+/**
+ * @swagger
+ * /test:
+ *  get:
+ *      summary: To get all the services along with their seller details
+ *      description: This api is used fetch all the services along with their seller details
+ *      responses:
+ *          200:
+ *              description: This api is used fetch all the services along with their seller details from mongodb
+ *              content:
+ *                  application/json:
+ *                      schema:
+ *                          type: array
+ *                          items:
+ *                              $ref: '#components/schema/Service'
+ */
+
 app.get("/test", async (req, res) => {
   let data = await serviceConstructor.find().populate("seller");
   res.send(data);
 });
 
-const storage = multer.memoryStorage();
-const multerUploads = multer({ storage }).array("images",2);
+// const storage = multer.memoryStorage();
+// const multerUploads = multer({ storage }).array("images",2);
 
 app.post("/upload", multerUploads, (req, res) => {
   console.log(req.body,req.files);
